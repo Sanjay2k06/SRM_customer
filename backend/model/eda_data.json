@@ -1,13 +1,28 @@
 {
-  "income_vs_spending": {
-    "High": 275.51163106796116,
-    "Middle": 274.5884329896908
+  "dataset_overview": {
+    "total_records": 1000,
+    "total_revenue": 275063.88,
+    "avg_purchase": 275.06388,
+    "median_purchase": 276.16499999999996
+  },
+  "income_analysis": {
+    "by_income": {
+      "mean": {
+        "High": 275.51163106796116,
+        "Middle": 274.5884329896908
+      },
+      "count": {
+        "High": 515,
+        "Middle": 485
+      }
+    }
   },
   "loyalty_stats": {
     "members": 491,
     "non_members": 509,
     "member_avg_spending": 261.2668228105906,
-    "non_member_avg_spending": 288.373025540275
+    "non_member_avg_spending": 288.373025540275,
+    "member_satisfaction": 5.4887983706720975
   },
   "purchase_intent_distribution": {
     "Need-based": 256,
@@ -20,14 +35,75 @@
     "Sports & Outdoors": 51,
     "Home Appliances": 50,
     "Jewelry & Accessories": 50,
-    "Toys & Games": 47
+    "Toys & Games": 47,
+    "Gardening & Outdoors": 44,
+    "Food & Beverages": 44,
+    "Animal Feed": 44,
+    "Packages)": 43,
+    "Software & Apps": 43
+  },
+  "channel_performance": {
+    "channel_revenue": {
+      "In-Store": 270.8444478527607,
+      "Mixed": 279.89517647058824,
+      "Online": 274.2641616766467
+    },
+    "channel_satisfaction": {
+      "In-Store": 5.2392638036809815,
+      "Mixed": 5.379411764705883,
+      "Online": 5.574850299401198
+    }
   },
   "discount_impact": {
     "with_discount": 273.99228406909793,
-    "without_discount": 276.22943632567853
+    "without_discount": 276.22943632567853,
+    "discount_penetration": 52.1
   },
-  "correlation_top_features": {
+  "demographic_insights": {
+    "avg_age": 34.304,
+    "gender_distribution": {
+      "Female": 452,
+      "Male": 449,
+      "Bigender": 20,
+      "Agender": 19,
+      "Genderfluid": 17,
+      "Non-binary": 16,
+      "Polygender": 15,
+      "Genderqueer": 12
+    },
+    "education_distribution": {
+      "Bachelor's": 341,
+      "High School": 331,
+      "Master's": 328
+    }
+  },
+  "satisfaction_metrics": {
+    "avg_satisfaction": 5.399,
+    "satisfaction_by_intent": {
+      "Impulsive": 5.395161290322581,
+      "Need-based": 5.375,
+      "Planned": 5.230769230769231,
+      "Wants-based": 5.594377510040161
+    }
+  },
+  "correlation_analysis": {
     "brand_loyalty_vs_satisfaction": -0.03457512833375176,
-    "age_vs_amount": -0.016299530739375234
+    "age_vs_amount": -0.016299530739375234,
+    "time_to_decision_vs_satisfaction": -0.014634844007912071,
+    "frequency_vs_satisfaction": 0.01407523667663866
+  },
+  "device_insights": {
+    "by_device": {
+      "mean": {
+        "Desktop": 266.69854285714285,
+        "Smartphone": 282.0501286173633,
+        "Tablet": 277.2914454277286
+      },
+      "count": {
+        "Desktop": 350,
+        "Smartphone": 311,
+        "Tablet": 339
+      }
+    }
   }
 }

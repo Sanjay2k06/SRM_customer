@@ -22,6 +22,9 @@ export default function Dashboard() {
   const [datasetInfo, setDatasetInfo] = useState(null);
   const [predictionResult, setPredictionResult] = useState(null);
   const [predicting, setPredicting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(null);
+  const [uploadFile, setUploadFile] = useState(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -89,6 +92,35 @@ export default function Dashboard() {
     }
   };
 
+  const handleDatasetUpload = async () => {
+    if (!uploadFile) {
+      toast.error("Please select a CSV or XML file");
+      return;
+    }
+
+    setUploading(true);
+    setUploadStatus(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+
+      const response = await axios.post(`${API}/dataset/upload?retrain=true`, formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+
+      setUploadStatus({ type: "success", message: response.data.message });
+      toast.success("Dataset uploaded and models retrained");
+      await loadData();
+    } catch (error) {
+      console.error("Dataset upload error:", error);
+      setUploadStatus({ type: "error", message: "Upload failed. Check file format." });
+      toast.error("Dataset upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
@@ -101,24 +133,28 @@ export default function Dashboard() {
   }
 
   // Prepare chart data
-  const incomeSpendingData = edaData ? Object.entries(edaData.income_vs_spending).map(([key, value]) => ({
+  const incomeSpendingEntries = Object.entries(edaData?.income_vs_spending ?? {});
+  const incomeSpendingData = incomeSpendingEntries.map(([key, value]) => ({
     income: key,
     spending: value
-  })) : [];
+  }));
 
-  const intentDistributionData = edaData ? Object.entries(edaData.purchase_intent_distribution).map(([key, value]) => ({
+  const intentDistributionEntries = Object.entries(edaData?.purchase_intent_distribution ?? {});
+  const intentDistributionData = intentDistributionEntries.map(([key, value]) => ({
     name: key,
     value: value
-  })) : [];
+  }));
 
-  const loyaltyComparisonData = edaData ? [
-    { category: "Members", count: edaData.loyalty_stats.members, avgSpending: edaData.loyalty_stats.member_avg_spending },
-    { category: "Non-Members", count: edaData.loyalty_stats.non_members, avgSpending: edaData.loyalty_stats.non_member_avg_spending }
+  const loyaltyStats = edaData?.loyalty_stats ?? null;
+  const loyaltyComparisonData = loyaltyStats ? [
+    { category: "Members", count: loyaltyStats.members ?? 0, avgSpending: loyaltyStats.member_avg_spending ?? 0 },
+    { category: "Non-Members", count: loyaltyStats.non_members ?? 0, avgSpending: loyaltyStats.non_member_avg_spending ?? 0 }
   ] : [];
 
-  const discountImpactData = edaData ? [
-    { type: "With Discount", amount: edaData.discount_impact.with_discount },
-    { type: "Without Discount", amount: edaData.discount_impact.without_discount }
+  const discountImpact = edaData?.discount_impact ?? null;
+  const discountImpactData = discountImpact ? [
+    { type: "With Discount", amount: discountImpact.with_discount ?? 0 },
+    { type: "Without Discount", amount: discountImpact.without_discount ?? 0 }
   ] : [];
 
   return (
@@ -423,6 +459,22 @@ export default function Dashboard() {
                     >
                       Predict Spending
                     </Button>
+                    <Button
+                      onClick={() => handlePredict('satisfaction')}
+                      disabled={predicting}
+                      className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800"
+                      data-testid="btn-predict-satisfaction"
+                    >
+                      Predict Satisfaction
+                    </Button>
+                    <Button
+                      onClick={() => handlePredict('return-rate')}
+                      disabled={predicting}
+                      className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800"
+                      data-testid="btn-predict-return"
+                    >
+                      Predict Return Risk
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -499,6 +551,48 @@ export default function Dashboard() {
                           </div>
                         </>
                       )}
+
+                      {predictionResult.type === 'satisfaction' && (
+                        <>
+                          <div>
+                            <p className="text-sm text-blue-200 mb-2">Predicted Satisfaction:</p>
+                            <p className="text-2xl font-bold text-white">
+                              {predictionResult.data.predicted_satisfaction.toFixed(1)}/10
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-blue-200 mb-2">Confidence:</p>
+                            <p className="text-xl font-semibold text-green-400">
+                              {(predictionResult.data.confidence * 100).toFixed(1)}%
+                            </p>
+                          </div>
+                          <div className="pt-2">
+                            <div className="bg-slate-700 rounded-full h-2 overflow-hidden">
+                              <div 
+                                className="bg-gradient-to-r from-emerald-400 to-emerald-600 h-full" 
+                                style={{width: `${(predictionResult.data.predicted_satisfaction / 10) * 100}%`}}
+                              ></div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {predictionResult.type === 'return-rate' && (
+                        <>
+                          <div>
+                            <p className="text-sm text-blue-200 mb-2">Return Prediction:</p>
+                            <p className="text-2xl font-bold text-white">
+                              {predictionResult.data.will_return ? "⚠️ Likely to Return" : "✓ Keep Product"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-blue-200 mb-2">Return Probability:</p>
+                            <p className={`text-xl font-semibold ${predictionResult.data.will_return ? 'text-red-400' : 'text-green-400'}`}>
+                              {(predictionResult.data.probability * 100).toFixed(1)}%
+                            </p>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <div className="text-center py-12 text-gray-400">
@@ -520,6 +614,31 @@ export default function Dashboard() {
                 <CardDescription className="text-blue-200">Overview of the training data</CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="bg-slate-900/50 p-4 rounded-lg mb-6">
+                  <h3 className="text-white font-semibold mb-2">Upload New Dataset</h3>
+                  <p className="text-sm text-blue-200 mb-4">Supported formats: CSV, XML. Uploading retrains models.</p>
+                  <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
+                    <Input
+                      type="file"
+                      accept=".csv,.xml"
+                      onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+                      className="bg-slate-800/60 text-white border-blue-500/30"
+                    />
+                    <Button
+                      onClick={handleDatasetUpload}
+                      disabled={uploading}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      {uploading ? "Uploading..." : "Upload & Retrain"}
+                    </Button>
+                  </div>
+                  {uploadStatus && (
+                    <p className={`text-sm mt-3 ${uploadStatus.type === "success" ? "text-green-400" : "text-red-400"}`}>
+                      {uploadStatus.message}
+                    </p>
+                  )}
+                </div>
+
                 {datasetInfo && (
                   <div className="space-y-6">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

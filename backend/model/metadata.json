@@ -19,7 +19,10 @@
     "Engagement_with_Ads",
     "Device_Used_for_Shopping",
     "Payment_Method",
-    "Time_to_Decision"
+    "Time_to_Decision",
+    "age_income_interaction",
+    "satisfaction_loyalty_interaction",
+    "research_time_normalized"
   ],
   "numerical_features": [
     "Age",
@@ -51,14 +54,22 @@
     "Planned",
     "Wants-based"
   ],
+  "models_used": {
+    "purchase_intent": "XGBoost",
+    "loyalty_program": "GradientBoosting",
+    "purchase_amount": "RandomForest"
+  },
   "metrics": {
-    "purchase_intent_accuracy": 0.26,
-    "loyalty_accuracy": 0.52,
-    "amount_r2_score": -0.05242335012663024,
-    "amount_rmse": 135.37506801562628
+    "purchase_intent_accuracy": 0.31,
+    "loyalty_accuracy": 0.47,
+    "amount_r2_score": -0.07131428635178705,
+    "amount_rmse": 144.3597824104816,
+    "satisfaction_r2": 0.9999999403953552,
+    "return_accuracy": 1.0
   },
   "dataset_info": {
     "total_samples": 1000,
-    "features": 20
+    "features": 23,
+    "data_file": "Ecommerce_Consumer_Behavior_Analysis_Data.csv"
   }
 }

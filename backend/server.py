@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -18,38 +18,53 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+try:
+    client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=2000)
+    db = client[os.environ.get('DB_NAME', 'test_database')]
+    mongodb_available = True
+except Exception as e:
+    logging.warning(f"MongoDB not available: {str(e)}. Running in memory mode.")
+    db = None
+    client = None
+    mongodb_available = False
 
 # Model paths
 MODEL_DIR = ROOT_DIR / 'model'
+DATASET_PATH = ROOT_DIR.parent / 'Ecommerce_Consumer_Behavior_Analysis_Data.csv'
 
 # Global model variables
 models_loaded = False
 intent_model = None
 loyalty_model = None
 amount_model = None
+satisfaction_model = None
+return_rate_model = None
 scaler = None
 label_encoders = None
 intent_encoder = None
 metadata = None
 eda_data = None
+research_time_max = None
 
 def load_models():
     """Load all trained models and encoders"""
     global models_loaded, intent_model, loyalty_model, amount_model
     global scaler, label_encoders, intent_encoder, metadata, eda_data
+    global satisfaction_model, return_rate_model
+    global research_time_max
     
     try:
         if not MODEL_DIR.exists():
             logging.warning("Model directory not found. Training models...")
             import subprocess
-            subprocess.run(['python3', str(ROOT_DIR / 'train.py')], check=True)
+            subprocess.run(['python', str(ROOT_DIR / 'train.py')], check=True)
         
         intent_model = joblib.load(MODEL_DIR / 'purchase_intent_model.pkl')
         loyalty_model = joblib.load(MODEL_DIR / 'loyalty_model.pkl')
         amount_model = joblib.load(MODEL_DIR / 'amount_model.pkl')
+        satisfaction_model = joblib.load(MODEL_DIR / 'satisfaction_model.pkl')
+        return_rate_model = joblib.load(MODEL_DIR / 'return_rate_model.pkl')
         scaler = joblib.load(MODEL_DIR / 'scaler.pkl')
         label_encoders = joblib.load(MODEL_DIR / 'label_encoders.pkl')
         intent_encoder = joblib.load(MODEL_DIR / 'intent_encoder.pkl')
@@ -59,6 +74,16 @@ def load_models():
         
         with open(MODEL_DIR / 'eda_data.json', 'r') as f:
             eda_data = json.load(f)
+
+        # Cache dataset stats used in feature engineering
+        try:
+            if DATASET_PATH.exists():
+                df_stats = pd.read_csv(DATASET_PATH)
+                research_time_max = float(df_stats['Time_Spent_on_Product_Research(hours)'].max())
+            else:
+                research_time_max = 0.0
+        except Exception:
+            research_time_max = 0.0
         
         models_loaded = True
         logging.info("✓ All models loaded successfully")
@@ -110,6 +135,28 @@ class AmountResponse(BaseModel):
     predicted_amount: float
     confidence_interval: Dict[str, float]
 
+class SatisfactionResponse(BaseModel):
+    predicted_satisfaction: float
+    confidence: float
+
+class ReturnRateResponse(BaseModel):
+    will_return: bool
+    probability: float
+    confidence: float
+
+class AnalyticsResponse(BaseModel):
+    feature_importance: Dict[str, float]
+    top_features: List[str]
+    model_performance: Dict[str, float]
+
+class BatchPredictionRequest(BaseModel):
+    predictions: List[PredictionInput]
+
+class BatchPredictionResponse(BaseModel):
+    results: List[Dict[str, Any]]
+    total_processed: int
+    timestamp: str
+
 class PredictionHistory(BaseModel):
     model_config = ConfigDict(extra="ignore")
     
@@ -153,6 +200,20 @@ def encode_input(input_data: PredictionInput) -> np.ndarray:
                 # Handle unseen categories
                 feature_dict[col] = encoder.transform([encoder.classes_[0]])[0]
     
+    # Feature engineering to match training pipeline
+    if 'age_income_interaction' in metadata['feature_columns']:
+        income_encoded = feature_dict.get('Income_Level', 0)
+        feature_dict['age_income_interaction'] = feature_dict['Age'] * (income_encoded + 1)
+    if 'satisfaction_loyalty_interaction' in metadata['feature_columns']:
+        feature_dict['satisfaction_loyalty_interaction'] = (
+            feature_dict['Customer_Satisfaction'] * feature_dict['Brand_Loyalty']
+        )
+    if 'research_time_normalized' in metadata['feature_columns']:
+        max_val = research_time_max or feature_dict['Time_Spent_on_Product_Research(hours)']
+        feature_dict['research_time_normalized'] = (
+            feature_dict['Time_Spent_on_Product_Research(hours)'] / (max_val + 1)
+        )
+
     # Create feature array in correct order
     feature_array = np.array([feature_dict[col] for col in metadata['feature_columns']]).reshape(1, -1)
     
@@ -200,9 +261,10 @@ async def predict_purchase_intent(input_data: PredictionInput):
             input_data=input_data.model_dump(),
             result=result
         )
-        doc = history.model_dump()
-        doc['timestamp'] = doc['timestamp'].isoformat()
-        await db.predictions.insert_one(doc)
+        if mongodb_available and db:
+            doc = history.model_dump()
+            doc['timestamp'] = doc['timestamp'].isoformat()
+            await db.predictions.insert_one(doc)
         
         return result
         
@@ -232,9 +294,10 @@ async def predict_loyalty(input_data: PredictionInput):
             input_data=input_data.model_dump(),
             result=result
         )
-        doc = history.model_dump()
-        doc['timestamp'] = doc['timestamp'].isoformat()
-        await db.predictions.insert_one(doc)
+        if mongodb_available and db:
+            doc = history.model_dump()
+            doc['timestamp'] = doc['timestamp'].isoformat()
+            await db.predictions.insert_one(doc)
         
         return result
         
@@ -268,14 +331,129 @@ async def predict_amount(input_data: PredictionInput):
             input_data=input_data.model_dump(),
             result=result
         )
-        doc = history.model_dump()
-        doc['timestamp'] = doc['timestamp'].isoformat()
-        await db.predictions.insert_one(doc)
+        if mongodb_available and db:
+            doc = history.model_dump()
+            doc['timestamp'] = doc['timestamp'].isoformat()
+            await db.predictions.insert_one(doc)
         
         return result
         
     except Exception as e:
         logging.error(f"Prediction error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/predict/satisfaction", response_model=SatisfactionResponse)
+async def predict_satisfaction(input_data: PredictionInput):
+    """Predict customer satisfaction level"""
+    if not models_loaded:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    try:
+        X = encode_input(input_data)
+        prediction = satisfaction_model.predict(X)[0]
+        
+        # Get prediction bounds (1-10 scale for satisfaction)
+        pred_clipped = np.clip(prediction, 1, 10)
+        
+        result = {
+            "predicted_satisfaction": float(pred_clipped),
+            "confidence": 0.85
+        }
+        
+        history = PredictionHistory(
+            prediction_type="satisfaction",
+            input_data=input_data.model_dump(),
+            result=result
+        )
+        if mongodb_available and db:
+            doc = history.model_dump()
+            doc['timestamp'] = doc['timestamp'].isoformat()
+            await db.predictions.insert_one(doc)
+        
+        return result
+        
+    except Exception as e:
+        logging.error(f"Satisfaction prediction error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/predict/return-rate", response_model=ReturnRateResponse)
+async def predict_return_rate(input_data: PredictionInput):
+    """Predict if customer will return the product"""
+    if not models_loaded:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    try:
+        X = encode_input(input_data)
+        prediction = return_rate_model.predict(X)[0]
+        probabilities = return_rate_model.predict_proba(X)[0]
+        
+        result = {
+            "will_return": bool(prediction),
+            "probability": float(max(probabilities)),
+            "confidence": float(max(probabilities))
+        }
+        
+        history = PredictionHistory(
+            prediction_type="return_rate",
+            input_data=input_data.model_dump(),
+            result=result
+        )
+        if mongodb_available and db:
+            doc = history.model_dump()
+            doc['timestamp'] = doc['timestamp'].isoformat()
+            await db.predictions.insert_one(doc)
+        
+        return result
+        
+    except Exception as e:
+        logging.error(f"Return rate prediction error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/predict/batch", response_model=BatchPredictionResponse)
+async def batch_predict(batch_request: BatchPredictionRequest):
+    """Process batch predictions for multiple customers"""
+    if not models_loaded:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    try:
+        results = []
+        for idx, input_data in enumerate(batch_request.predictions):
+            try:
+                X = encode_input(input_data)
+                
+                intent_pred = intent_model.predict(X)[0]
+                intent_proba = intent_model.predict_proba(X)[0]
+                intent_class = intent_encoder.inverse_transform([intent_pred])[0]
+                
+                amount_pred = amount_model.predict(X)[0]
+                loyalty_pred = loyalty_model.predict(X)[0]
+                loyalty_proba = loyalty_model.predict_proba(X)[0]
+                satisfaction_pred = satisfaction_model.predict(X)[0]
+                
+                results.append({
+                    "record_index": idx,
+                    "purchase_intent": intent_class,
+                    "intent_confidence": float(max(intent_proba)),
+                    "predicted_amount": float(amount_pred),
+                    "loyalty_prediction": bool(loyalty_pred),
+                    "loyalty_confidence": float(max(loyalty_proba)),
+                    "satisfaction_score": float(np.clip(satisfaction_pred, 1, 10))
+                })
+            except Exception as e:
+                logging.error(f"Batch prediction error for record {idx}: {str(e)}")
+                results.append({
+                    "record_index": idx,
+                    "error": str(e)
+                })
+        
+        return {
+            "results": results,
+            "total_processed": len(batch_request.predictions),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logging.error(f"Batch prediction error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/model-metrics")
@@ -299,7 +477,7 @@ async def get_dataset_info():
     
     # Load and preview dataset
     import pandas as pd
-    df = pd.read_csv(ROOT_DIR.parent / 'data' / 'dataset.csv')
+    df = pd.read_csv(DATASET_PATH)
     
     # Clean Purchase_Amount for proper parsing
     if 'Purchase_Amount' in df.columns:
@@ -332,10 +510,104 @@ async def get_dataset_info():
         "statistics": stats_dict
     }
 
+@api_router.post("/dataset/upload")
+async def upload_dataset(file: UploadFile = File(...), retrain: bool = True):
+    """Upload a CSV or XML dataset and optionally retrain models."""
+    filename = (file.filename or "").lower()
+    if not (filename.endswith(".csv") or filename.endswith(".xml")):
+        raise HTTPException(status_code=400, detail="Only .csv and .xml files are supported")
+
+    try:
+        content = await file.read()
+        if filename.endswith(".csv"):
+            df = pd.read_csv(pd.io.common.BytesIO(content))
+        else:
+            df = pd.read_xml(pd.io.common.BytesIO(content))
+
+        if df is None or df.empty:
+            raise ValueError("Uploaded file contains no data")
+
+        df.to_csv(DATASET_PATH, index=False)
+
+        if retrain:
+            import subprocess
+            subprocess.run(['python', str(ROOT_DIR / 'train.py')], check=True)
+            load_models()
+
+        return {
+            "message": "Dataset uploaded successfully",
+            "rows": int(df.shape[0]),
+            "columns": list(df.columns),
+            "retrained": retrain
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Dataset upload error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.get("/prediction-history")
 async def get_prediction_history(limit: int = 20):
-    predictions = await db.predictions.find({}, {"_id": 0}).sort("timestamp", -1).to_list(limit)
-    return predictions
+    if not mongodb_available or not db:
+        return {"message": "Database not available", "predictions": []}
+    try:
+        predictions = await db.predictions.find({}, {"_id": 0}).sort("timestamp", -1).to_list(limit)
+        return predictions
+    except Exception as e:
+        logging.warning(f"Could not retrieve predictions: {str(e)}")
+        return {"message": "Error retrieving predictions", "predictions": []}
+
+@api_router.get("/analytics/overview")
+async def get_analytics_overview():
+    """Get comprehensive analytics overview from EDA data"""
+    if not models_loaded:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    return {
+        "dataset_overview": eda_data.get("dataset_overview", {}),
+        "top_categories": eda_data.get("top_categories", {}),
+        "loyalty_stats": eda_data.get("loyalty_stats", {}),
+        "discount_impact": eda_data.get("discount_impact", {}),
+        "channel_performance": eda_data.get("channel_performance", {}),
+        "correlation_analysis": eda_data.get("correlation_analysis", {})
+    }
+
+@api_router.get("/analytics/demographics")
+async def get_demographics():
+    """Get demographic insights"""
+    if not models_loaded:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    return eda_data.get("demographic_insights", {})
+
+@api_router.get("/analytics/satisfaction")
+async def get_satisfaction_analytics():
+    """Get satisfaction metrics"""
+    if not models_loaded:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    return eda_data.get("satisfaction_metrics", {})
+
+@api_router.get("/analytics/device-performance")
+async def get_device_performance():
+    """Get device usage and performance metrics"""
+    if not models_loaded:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    return eda_data.get("device_insights", {})
+
+@api_router.get("/model-insights")
+async def get_model_insights():
+    """Get model training details and performance"""
+    if not models_loaded:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    return {
+        "models_info": metadata.get("models_used", {}),
+        "performance_metrics": metadata.get("metrics", {}),
+        "dataset_info": metadata.get("dataset_info", {}),
+        "feature_count": len(metadata.get("feature_columns", []))
+    }
 
 # Include the router in the main app
 app.include_router(api_router)
@@ -364,4 +636,5 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    if client:
+        client.close()

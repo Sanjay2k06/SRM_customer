@@ -1,4 +1,4 @@
-# Customer Behavior & Marketing Intelligence System
+# SRM_HACKATHON_1
 
 A production-ready machine learning system for analyzing customer behavior and predicting purchasing patterns.
 

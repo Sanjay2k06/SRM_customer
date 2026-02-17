@@ -1,12 +1,11 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.ensemble import (RandomForestClassifier, RandomForestRegressor, 
                              GradientBoostingClassifier, GradientBoostingRegressor)
 from xgboost import XGBClassifier, XGBRegressor
-from sklearn.metrics import (accuracy_score, classification_report, 
-                            mean_squared_error, r2_score, mean_absolute_error)
+from sklearn.metrics import (accuracy_score, mean_squared_error, r2_score, mean_absolute_error)
 import joblib
 import json
 from pathlib import Path
@@ -27,9 +26,10 @@ def clean_purchase_amount(amount_str):
     return float(amount_str)
 
 def train_models():
-    print("=" * 50)
-    print("Starting ML Model Training Pipeline")
-    print("=" * 50)
+    print("=" * 60)
+    print("ADVANCED ML MODEL TRAINING PIPELINE")
+    print("With Real E-commerce Dataset")
+    print("=" * 60)
     
     # Load dataset
     print("\n1. Loading dataset...")
@@ -40,18 +40,15 @@ def train_models():
     # Data Cleaning
     print("\n2. Cleaning data...")
     df['Purchase_Amount'] = df['Purchase_Amount'].apply(clean_purchase_amount)
-    
-    # Handle missing values
     df['Social_Media_Influence'].fillna('None', inplace=True)
     df['Engagement_with_Ads'].fillna('None', inplace=True)
     
-    print("   ✓ Missing values handled")
-    print("   ✓ Purchase amount cleaned")
+    print("   [+] Missing values handled")
+    print("   [+] Purchase amount cleaned")
     
     # Feature Engineering
     print("\n3. Advanced Feature Engineering...")
     
-    # Define features for modeling
     feature_columns = [
         'Age', 'Gender', 'Income_Level', 'Marital_Status', 'Education_Level',
         'Occupation', 'Purchase_Category', 'Frequency_of_Purchase',
@@ -84,19 +81,19 @@ def train_models():
         df_encoded[col] = le.fit_transform(df_encoded[col].astype(str))
         label_encoders[col] = le
     
-    print(f"   ✓ Encoded {len(categorical_features)} categorical features")
+    print(f"   [+] Encoded {len(categorical_features)} categorical features")
     
-    # Create polynomial features for numerical data
+    # Create interaction features
     df_encoded['age_income_interaction'] = df_encoded['Age'] * (df_encoded['Income_Level'] + 1)
     df_encoded['satisfaction_loyalty_interaction'] = df_encoded['Customer_Satisfaction'] * df_encoded['Brand_Loyalty']
     df_encoded['research_time_normalized'] = df_encoded['Time_Spent_on_Product_Research(hours)'] / (df_encoded['Time_Spent_on_Product_Research(hours)'].max() + 1)
     
     feature_columns.extend(['age_income_interaction', 'satisfaction_loyalty_interaction', 'research_time_normalized'])
-    print("   ✓ Added interaction features")
+    print("   [+] Added interaction features")
     
     # Save encoders
     joblib.dump(label_encoders, MODEL_DIR / 'label_encoders.pkl')
-    print("   ✓ Label encoders saved")
+    print("   [+] Label encoders saved")
     
     # Prepare features
     X = df_encoded[feature_columns]
@@ -105,7 +102,7 @@ def train_models():
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     joblib.dump(scaler, MODEL_DIR / 'scaler.pkl')
-    print("   ✓ Feature scaler saved")
+    print("   [+] Feature scaler saved")
     
     # ========================================
     # MODEL 1: Purchase Intent Classification
@@ -120,31 +117,32 @@ def train_models():
         X_scaled, y_intent_encoded, test_size=0.2, random_state=42, stratify=y_intent_encoded
     )
     
-    # XGBoost Classifier for Intent
+    # XGBoost
     intent_xgb = XGBClassifier(
-        n_estimators=150,
-        max_depth=7,
-        learning_rate=0.05,
+        n_estimators=100,
+        max_depth=6,
+        learning_rate=0.1,
         subsample=0.8,
         colsample_bytree=0.8,
         random_state=42,
         objective='multi:softprob',
         num_class=len(intent_encoder.classes_),
-        eval_metric='mlogloss'
+        eval_metric='mlogloss',
+        verbosity=0
     )
-    intent_xgb.fit(X_train, y_train)
+    intent_xgb.fit(X_train, y_train, verbose=False)
     
     y_pred_xgb = intent_xgb.predict(X_test)
     intent_accuracy_xgb = accuracy_score(y_test, y_pred_xgb)
     
-    # Random Forest for comparison
-    intent_rf = RandomForestClassifier(n_estimators=150, max_depth=12, random_state=42, n_jobs=-1)
+    # Random Forest
+    intent_rf = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
     intent_rf.fit(X_train, y_train)
     y_pred_rf = intent_rf.predict(X_test)
     intent_accuracy_rf = accuracy_score(y_test, y_pred_rf)
     
     # Gradient Boosting
-    intent_gb = GradientBoostingClassifier(n_estimators=150, max_depth=6, learning_rate=0.05, random_state=42)
+    intent_gb = GradientBoostingClassifier(n_estimators=100, max_depth=5, learning_rate=0.1, random_state=42)
     intent_gb.fit(X_train, y_train)
     y_pred_gb = intent_gb.predict(X_test)
     intent_accuracy_gb = accuracy_score(y_test, y_pred_gb)
@@ -154,11 +152,11 @@ def train_models():
     best_intent_model = intent_xgb if intent_accuracy_xgb == intent_accuracy else (intent_rf if intent_accuracy_rf == intent_accuracy else intent_gb)
     best_intent_name = 'XGBoost' if intent_accuracy_xgb == intent_accuracy else ('RandomForest' if intent_accuracy_rf == intent_accuracy else 'GradientBoosting')
     
-    print(f"   ✓ XGBoost Accuracy: {intent_accuracy_xgb:.2%}")
-    print(f"   ✓ RandomForest Accuracy: {intent_accuracy_rf:.2%}")
-    print(f"   ✓ GradientBoosting Accuracy: {intent_accuracy_gb:.2%}")
-    print(f"   ✓ Best Model: {best_intent_name} ({intent_accuracy:.2%})")
-    print(f"   ✓ Classes: {list(intent_encoder.classes_)}")
+    print(f"   [+] XGBoost Accuracy: {intent_accuracy_xgb:.2%}")
+    print(f"   [+] RandomForest Accuracy: {intent_accuracy_rf:.2%}")
+    print(f"   [+] GradientBoosting Accuracy: {intent_accuracy_gb:.2%}")
+    print(f"   [+] Best Model: {best_intent_name} ({intent_accuracy:.2%})")
+    print(f"   [+] Classes: {list(intent_encoder.classes_)}")
     
     joblib.dump(best_intent_model, MODEL_DIR / 'purchase_intent_model.pkl')
     joblib.dump(intent_encoder, MODEL_DIR / 'intent_encoder.pkl')
@@ -176,26 +174,27 @@ def train_models():
     
     # XGBoost
     loyalty_xgb = XGBClassifier(
-        n_estimators=150,
-        max_depth=6,
-        learning_rate=0.08,
+        n_estimators=100,
+        max_depth=5,
+        learning_rate=0.1,
         subsample=0.8,
         colsample_bytree=0.8,
         random_state=42,
-        eval_metric='logloss'
+        eval_metric='logloss',
+        verbosity=0
     )
-    loyalty_xgb.fit(X_train, y_train)
+    loyalty_xgb.fit(X_train, y_train, verbose=False)
     y_pred_xgb = loyalty_xgb.predict(X_test)
     loyalty_accuracy_xgb = accuracy_score(y_test, y_pred_xgb)
     
     # RandomForest
-    loyalty_rf = RandomForestClassifier(n_estimators=150, max_depth=10, random_state=42, n_jobs=-1)
+    loyalty_rf = RandomForestClassifier(n_estimators=100, max_depth=8, random_state=42, n_jobs=-1)
     loyalty_rf.fit(X_train, y_train)
     y_pred_rf = loyalty_rf.predict(X_test)
     loyalty_accuracy_rf = accuracy_score(y_test, y_pred_rf)
     
     # Gradient Boosting
-    loyalty_gb = GradientBoostingClassifier(n_estimators=150, max_depth=5, learning_rate=0.08, random_state=42)
+    loyalty_gb = GradientBoostingClassifier(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42)
     loyalty_gb.fit(X_train, y_train)
     y_pred_gb = loyalty_gb.predict(X_test)
     loyalty_accuracy_gb = accuracy_score(y_test, y_pred_gb)
@@ -204,10 +203,10 @@ def train_models():
     best_loyalty_model = loyalty_xgb if loyalty_accuracy_xgb == loyalty_accuracy else (loyalty_rf if loyalty_accuracy_rf == loyalty_accuracy else loyalty_gb)
     best_loyalty_name = 'XGBoost' if loyalty_accuracy_xgb == loyalty_accuracy else ('RandomForest' if loyalty_accuracy_rf == loyalty_accuracy else 'GradientBoosting')
     
-    print(f"   ✓ XGBoost Accuracy: {loyalty_accuracy_xgb:.2%}")
-    print(f"   ✓ RandomForest Accuracy: {loyalty_accuracy_rf:.2%}")
-    print(f"   ✓ GradientBoosting Accuracy: {loyalty_accuracy_gb:.2%}")
-    print(f"   ✓ Best Model: {best_loyalty_name} ({loyalty_accuracy:.2%})")
+    print(f"   [+] XGBoost Accuracy: {loyalty_accuracy_xgb:.2%}")
+    print(f"   [+] RandomForest Accuracy: {loyalty_accuracy_rf:.2%}")
+    print(f"   [+] GradientBoosting Accuracy: {loyalty_accuracy_gb:.2%}")
+    print(f"   [+] Best Model: {best_loyalty_name} ({loyalty_accuracy:.2%})")
     
     joblib.dump(best_loyalty_model, MODEL_DIR / 'loyalty_model.pkl')
     
@@ -224,43 +223,41 @@ def train_models():
     
     # XGBoost Regressor
     amount_xgb = XGBRegressor(
-        n_estimators=150,
-        max_depth=7,
-        learning_rate=0.05,
+        n_estimators=100,
+        max_depth=6,
+        learning_rate=0.1,
         subsample=0.8,
         colsample_bytree=0.8,
-        random_state=42
+        random_state=42,
+        verbosity=0
     )
-    amount_xgb.fit(X_train, y_train)
+    amount_xgb.fit(X_train, y_train, verbose=False)
     y_pred_xgb = amount_xgb.predict(X_test)
     amount_r2_xgb = r2_score(y_test, y_pred_xgb)
     amount_rmse_xgb = np.sqrt(mean_squared_error(y_test, y_pred_xgb))
-    amount_mae_xgb = mean_absolute_error(y_test, y_pred_xgb)
     
     # RandomForest Regressor
-    amount_rf = RandomForestRegressor(n_estimators=150, max_depth=12, random_state=42, n_jobs=-1)
+    amount_rf = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
     amount_rf.fit(X_train, y_train)
     y_pred_rf = amount_rf.predict(X_test)
     amount_r2_rf = r2_score(y_test, y_pred_rf)
     amount_rmse_rf = np.sqrt(mean_squared_error(y_test, y_pred_rf))
-    amount_mae_rf = mean_absolute_error(y_test, y_pred_rf)
     
-    # Gradient Boosting Regressor
-    amount_gb = GradientBoostingRegressor(n_estimators=150, max_depth=6, learning_rate=0.05, random_state=42)
+    # Gradient Boosting
+    amount_gb = GradientBoostingRegressor(n_estimators=100, max_depth=5, learning_rate=0.1, random_state=42)
     amount_gb.fit(X_train, y_train)
     y_pred_gb = amount_gb.predict(X_test)
     amount_r2_gb = r2_score(y_test, y_pred_gb)
     amount_rmse_gb = np.sqrt(mean_squared_error(y_test, y_pred_gb))
-    amount_mae_gb = mean_absolute_error(y_test, y_pred_gb)
     
     amount_r2 = max(amount_r2_xgb, amount_r2_rf, amount_r2_gb)
     best_amount_model = amount_xgb if amount_r2_xgb == amount_r2 else (amount_rf if amount_r2_rf == amount_r2 else amount_gb)
     best_amount_name = 'XGBoost' if amount_r2_xgb == amount_r2 else ('RandomForest' if amount_r2_rf == amount_r2 else 'GradientBoosting')
     
-    print(f"   ✓ XGBoost - R²: {amount_r2_xgb:.2%}, RMSE: ${amount_rmse_xgb:.2f}, MAE: ${amount_mae_xgb:.2f}")
-    print(f"   ✓ RandomForest - R²: {amount_r2_rf:.2%}, RMSE: ${amount_rmse_rf:.2f}, MAE: ${amount_mae_rf:.2f}")
-    print(f"   ✓ GradientBoosting - R²: {amount_r2_gb:.2%}, RMSE: ${amount_rmse_gb:.2f}, MAE: ${amount_mae_gb:.2f}")
-    print(f"   ✓ Best Model: {best_amount_name} (R²: {amount_r2:.2%})")
+    print(f"   [+] XGBoost - R2: {amount_r2_xgb:.2%}, RMSE: ${amount_rmse_xgb:.2f}")
+    print(f"   [+] RandomForest - R2: {amount_r2_rf:.2%}, RMSE: ${amount_rmse_rf:.2f}")
+    print(f"   [+] GradientBoosting - R2: {amount_r2_gb:.2%}, RMSE: ${amount_rmse_gb:.2f}")
+    print(f"   [+] Best Model: {best_amount_name} (R2: {amount_r2:.2%})")
     
     joblib.dump(best_amount_model, MODEL_DIR / 'amount_model.pkl')
     
@@ -276,15 +273,16 @@ def train_models():
     )
     
     satisfaction_model = XGBRegressor(
-        n_estimators=100,
-        max_depth=5,
+        n_estimators=80,
+        max_depth=4,
         learning_rate=0.1,
-        random_state=42
+        random_state=42,
+        verbosity=0
     )
-    satisfaction_model.fit(X_train_sat, y_train_sat)
+    satisfaction_model.fit(X_train_sat, y_train_sat, verbose=False)
     satisfaction_r2 = r2_score(y_test_sat, satisfaction_model.predict(X_test_sat))
     joblib.dump(satisfaction_model, MODEL_DIR / 'satisfaction_model.pkl')
-    print(f"   ✓ Customer Satisfaction Model (R²: {satisfaction_r2:.2%})")
+    print(f"   [+] Customer Satisfaction Model (R2: {satisfaction_r2:.2%})")
     
     # Return Rate Prediction
     y_return = df['Return_Rate']
@@ -293,15 +291,16 @@ def train_models():
     )
     
     return_model = XGBClassifier(
-        n_estimators=100,
-        max_depth=5,
+        n_estimators=80,
+        max_depth=4,
         learning_rate=0.1,
-        random_state=42
+        random_state=42,
+        verbosity=0
     )
-    return_model.fit(X_train_ret, y_train_ret)
+    return_model.fit(X_train_ret, y_train_ret, verbose=False)
     return_accuracy = accuracy_score(y_test_ret, return_model.predict(X_test_ret))
     joblib.dump(return_model, MODEL_DIR / 'return_rate_model.pkl')
-    print(f"   ✓ Return Rate Prediction Model (Accuracy: {return_accuracy:.2%})")
+    print(f"   [+] Return Rate Prediction Model (Accuracy: {return_accuracy:.2%})")
     
     # ========================================
     # Save Metadata
@@ -322,7 +321,7 @@ def train_models():
             'purchase_intent_accuracy': float(intent_accuracy),
             'loyalty_accuracy': float(loyalty_accuracy),
             'amount_r2_score': float(amount_r2),
-            'amount_rmse': float(np.sqrt(mean_squared_error(y_test, best_amount_model.predict(X_test)))),
+            'amount_rmse': float(amount_rmse_xgb),
             'satisfaction_r2': float(satisfaction_r2),
             'return_accuracy': float(return_accuracy)
         },
@@ -336,7 +335,7 @@ def train_models():
     with open(MODEL_DIR / 'metadata.json', 'w') as f:
         json.dump(metadata, f, indent=2)
     
-    print("   ✓ Metadata saved")
+    print("   [+] Metadata saved")
     
     # ========================================
     # Advanced EDA Data
@@ -394,10 +393,10 @@ def train_models():
     with open(MODEL_DIR / 'eda_data.json', 'w') as f:
         json.dump(eda_data, f, indent=2, default=str)
     
-    print("   ✓ Advanced EDA data saved")
+    print("   [+] Advanced EDA data saved")
     
     print("\n" + "=" * 60)
-    print("✓ ADVANCED MODEL TRAINING COMPLETED SUCCESSFULLY")
+    print("[OK] ADVANCED MODEL TRAINING COMPLETED SUCCESSFULLY")
     print("=" * 60)
     print(f"\nModels saved in: {MODEL_DIR}")
     print("\nTrained Models:")
@@ -409,8 +408,8 @@ def train_models():
     print("\nPerformance Metrics:")
     print(f"  Purchase Intent Accuracy: {intent_accuracy:.2%}")
     print(f"  Loyalty Prediction Accuracy: {loyalty_accuracy:.2%}")
-    print(f"  Amount Prediction R²: {amount_r2:.2%}")
-    print(f"  Customer Satisfaction R²: {satisfaction_r2:.2%}")
+    print(f"  Amount Prediction R2: {amount_r2:.2%}")
+    print(f"  Customer Satisfaction R2: {satisfaction_r2:.2%}")
     print(f"  Return Rate Accuracy: {return_accuracy:.2%}")
     
     return metadata
@@ -419,6 +418,6 @@ if __name__ == '__main__':
     try:
         metadata = train_models()
     except Exception as e:
-        print(f"\n❌ Error during training: {str(e)}")
+        print(f"\n[ERROR] during training: {str(e)}")
         import traceback
         traceback.print_exc()
