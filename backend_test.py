@@ -75,8 +75,9 @@ class CustomerIntelligenceAPITester:
         if success:
             required_metrics = ['purchase_intent_accuracy', 'loyalty_accuracy', 'amount_r2_score']
             missing_metrics = []
+            metrics_data = response.get('metrics', {})
             for metric in required_metrics:
-                if metric not in response:
+                if metric not in metrics_data:
                     missing_metrics.append(metric)
             
             if missing_metrics:
@@ -85,6 +86,9 @@ class CustomerIntelligenceAPITester:
                 return False
             else:
                 print("✅ All required metrics present")
+                print(f"✅ Purchase Intent Accuracy: {metrics_data.get('purchase_intent_accuracy')}")
+                print(f"✅ Loyalty Accuracy: {metrics_data.get('loyalty_accuracy')}")
+                print(f"✅ Amount R² Score: {metrics_data.get('amount_r2_score')}")
         return success
 
     def test_eda_data(self):
