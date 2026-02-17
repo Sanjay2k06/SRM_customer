@@ -342,3 +342,11 @@ For questions or issues:
 ---
 
 **Built with ❤️ using FastAPI, React, and Machine Learning**
+
+
+output:
+<img width="1904" height="911" alt="image" src="https://github.com/user-attachments/assets/96ad36b3-674b-4d1e-a15a-f92260f052a3" />
+<img width="1894" height="921" alt="image" src="https://github.com/user-attachments/assets/0c8e23dc-0a34-41ad-9a7b-4cb270a7512c" />
+<img width="1714" height="921" alt="image" src="https://github.com/user-attachments/assets/23cec510-ecc8-425a-b82e-83a90094f01e" />
+<img width="1873" height="677" alt="image" src="https://github.com/user-attachments/assets/1c5ebf1d-f7bc-402d-88de-dc197789748f" />
+
