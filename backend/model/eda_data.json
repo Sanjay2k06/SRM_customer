@@ -1,0 +1,33 @@
+{
+  "income_vs_spending": {
+    "High": 275.51163106796116,
+    "Middle": 274.5884329896908
+  },
+  "loyalty_stats": {
+    "members": 491,
+    "non_members": 509,
+    "member_avg_spending": 261.2668228105906,
+    "non_member_avg_spending": 288.373025540275
+  },
+  "purchase_intent_distribution": {
+    "Need-based": 256,
+    "Wants-based": 249,
+    "Impulsive": 248,
+    "Planned": 247
+  },
+  "top_categories": {
+    "Electronics": 54,
+    "Sports & Outdoors": 51,
+    "Home Appliances": 50,
+    "Jewelry & Accessories": 50,
+    "Toys & Games": 47
+  },
+  "discount_impact": {
+    "with_discount": 273.99228406909793,
+    "without_discount": 276.22943632567853
+  },
+  "correlation_top_features": {
+    "brand_loyalty_vs_satisfaction": -0.03457512833375176,
+    "age_vs_amount": -0.016299530739375234
+  }
+}

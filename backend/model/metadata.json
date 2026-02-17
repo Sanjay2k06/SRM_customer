@@ -1,0 +1,64 @@
+{
+  "feature_columns": [
+    "Age",
+    "Gender",
+    "Income_Level",
+    "Marital_Status",
+    "Education_Level",
+    "Occupation",
+    "Purchase_Category",
+    "Frequency_of_Purchase",
+    "Purchase_Channel",
+    "Brand_Loyalty",
+    "Product_Rating",
+    "Time_Spent_on_Product_Research(hours)",
+    "Social_Media_Influence",
+    "Discount_Sensitivity",
+    "Return_Rate",
+    "Customer_Satisfaction",
+    "Engagement_with_Ads",
+    "Device_Used_for_Shopping",
+    "Payment_Method",
+    "Time_to_Decision"
+  ],
+  "numerical_features": [
+    "Age",
+    "Frequency_of_Purchase",
+    "Brand_Loyalty",
+    "Product_Rating",
+    "Time_Spent_on_Product_Research(hours)",
+    "Return_Rate",
+    "Customer_Satisfaction",
+    "Time_to_Decision"
+  ],
+  "categorical_features": [
+    "Gender",
+    "Income_Level",
+    "Marital_Status",
+    "Education_Level",
+    "Occupation",
+    "Purchase_Category",
+    "Purchase_Channel",
+    "Social_Media_Influence",
+    "Discount_Sensitivity",
+    "Engagement_with_Ads",
+    "Device_Used_for_Shopping",
+    "Payment_Method"
+  ],
+  "intent_classes": [
+    "Impulsive",
+    "Need-based",
+    "Planned",
+    "Wants-based"
+  ],
+  "metrics": {
+    "purchase_intent_accuracy": 0.26,
+    "loyalty_accuracy": 0.52,
+    "amount_r2_score": -0.05242335012663024,
+    "amount_rmse": 135.37506801562628
+  },
+  "dataset_info": {
+    "total_samples": 1000,
+    "features": 20
+  }
+}
