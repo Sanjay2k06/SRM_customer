@@ -301,11 +301,35 @@ async def get_dataset_info():
     import pandas as pd
     df = pd.read_csv(ROOT_DIR.parent / 'data' / 'dataset.csv')
     
+    # Clean Purchase_Amount for proper parsing
+    if 'Purchase_Amount' in df.columns:
+        df['Purchase_Amount'] = df['Purchase_Amount'].apply(
+            lambda x: float(str(x).replace('$', '').replace(',', '').strip()) if isinstance(x, str) else x
+        )
+    
+    # Get numeric columns only for statistics
+    numeric_df = df.select_dtypes(include=[np.number])
+    stats_dict = numeric_df.describe().to_dict()
+    
+    # Replace NaN, Inf with None for JSON serialization
+    for col in stats_dict:
+        for stat in stats_dict[col]:
+            val = stats_dict[col][stat]
+            if pd.isna(val) or np.isinf(val):
+                stats_dict[col][stat] = None
+    
+    # Clean sample data
+    sample_data = df.head(5).to_dict(orient='records')
+    for record in sample_data:
+        for key, val in record.items():
+            if isinstance(val, (float, np.floating)) and (pd.isna(val) or np.isinf(val)):
+                record[key] = None
+    
     return {
         "shape": df.shape,
         "columns": list(df.columns),
-        "sample_data": df.head(5).to_dict(orient='records'),
-        "statistics": df.describe().to_dict()
+        "sample_data": sample_data,
+        "statistics": stats_dict
     }
 
 @api_router.get("/prediction-history")
